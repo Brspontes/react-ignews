@@ -1,3 +1,5 @@
+import { fauna } from './../../../services/fauna';
+import { query } from 'faunadb'
 import NextAuth from 'next-auth'
 import Providers from 'next-auth/providers'
 
@@ -9,4 +11,35 @@ export default NextAuth({
       scope: 'read:user'
     }),
   ],
+  callbacks: {
+    async signIn(user, account, profile) {
+      const { email } = user
+      try {
+        await fauna.query(
+          query.If(
+            query.Not(
+              query.Exists(
+                query.Match(
+                  query.Index('user_email'), query.Casefold(user.email) // casefold = lowercase
+                )
+              )
+            ),
+            query.Create(
+              query.Collection('users'),
+              { data: { email } }
+            ),
+            query.Get(
+              query.Match(
+                query.Index('user_email'), query.Casefold(user.email) // casefold = lowercase
+              )
+            )
+          )          
+        )
+
+        return true
+      } catch (error) {
+        return false
+      }      
+    }
+  }
 })
